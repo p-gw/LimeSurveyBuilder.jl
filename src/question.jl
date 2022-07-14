@@ -1,13 +1,18 @@
 """
     Question
 
+A survey component that stores information about LimeSurvey questions.
+
 # Fields
 - `id::String`: An alphanumeric question id. Must start with a letter.
-- `question::String`: The question title
-- `help::String`: Help text provided to users
+- `type::String`: The LimeSurvey question type
 - `mandatory::Bool`: Determines if the question is mandatory
 - `other::Bool`: Determines if the questions as *other* category
 - `relevance::String`: A LimeSurvey Expression Script
+- `attributes::Dict`: Additional question attributes
+- `language_settings::LanguageSettings`: Language Settings for the question
+- `subquestions::Vector{Subquestion}`: A vector of subquestions
+- `options::Vector{ResponseScale}`: A vector of response scales.
 """
 @kwdef struct Question <: AbstractQuestion
     id::String
@@ -25,11 +30,111 @@
     end
 end
 
+"""
+    is_mandatory(question::Question)
+
+Check if a [`Question`](@ref) is mandatory.
+
+# Examples
+```julia-repl
+julia> q = short_text_question("q1", "A question")
+julia> is_mandatory(q)
+false
+```
+
+```julia-repl
+julia> q = short_text_question("q1", "A mandatory question", mandatory=true)
+julia> is_mandatory(q)
+true
+```
+"""
 is_mandatory(question::Question) = question.mandatory
+
+"""
+    has_other(question::Question)
+
+Check if a [`Question`](@ref) has response option *'other'*.
+"""
 has_other(question::Question) = question.other
+
+"""
+    has_subquestions(question::Question)
+
+Check if a [`Question`](@ref) has any subquestions.
+
+# Examples
+```julia-repl
+julia> q = short_text_question("q1", "A question")
+julia> has_subquestions(q)
+false
+```
+
+```julia-repl
+julia> q = multiple_short_text_question("q1", "Multiple questions") do
+    subquestion("sq1", "subquestion 1"),
+    subquestion("sq2", "subquestion 2")
+end
+julia> has_subquestions(q)
+true
+```
+"""
 has_subquestions(question::Question) = length(question.subquestions) > 0
+
+"""
+    has_response_options(questions::Question)
+
+Check if a [`Question`](@ref) has any response options.
+
+# Examples
+```julia-repl
+julia> q = five_point_choice_question("q1", "A question")
+julia> has_response_options(q)
+false
+```
+
+```julia-repl
+julia> options = response_scale([response_option("o1", "option 1")])
+julia> q = dropdown_list_question("q1", "A dropdown question", options)
+julia> has_response_options(q)
+true
+```
+"""
 has_response_options(question::Question) = length(question.options) > 0
+
+"""
+    has_attributes(question::Question)
+
+Check if a [`Question`](@ref) has any attributes.
+
+# Examples
+```julia-repl
+julia> q = numerical_input("q1", "An input")
+julia> has_attributes(q)
+false
+```
+
+```julia-repl
+julia> q = numerical_input("q1", "An input with attributes", minimum=0, maximum=10)
+julia> has_attributes(q)
+true
+```
+"""
 has_attributes(question::Question) = length(question.attributes) > 0
+
+"""
+    attributes(question::Question)
+
+Get the attributes of a [`Question`](@ref).
+
+# Examples
+```julia-repl
+julia> q = numerical_input("q1", "A numerical input", minimum=0, maximum=10)
+julia> attributes(q)
+Dict{String, Any} with 2 entries:
+  "min_num_value_n" => 0
+  "max_num_value_n" => 10
+```
+"""
 attributes(question::Question) = question.attributes
 
 function add_attribute!(question::Question, attribute::Pair{String,T}) where {T}
@@ -47,7 +152,29 @@ function add_attribute!(question::Question, attribute::Pair{String,T}) where {T}
     return nothing
 end
 
-# text questions
+"""
+    short_text_question(id, language_settings::LanguageSettings; kwargs...)
+    short_text_question(id, title::String; help=nothing, default=nothing, kwargs...)
+
+Construct a short text question.
+If the question is constructed using a `title`, the global default language is used by default.
+
+For a list of available keyword arguments see [`Question`](@ref).
+
+# Examples
+Simple short text questions using a single language can be constructed using a `title` string.
+```julia-repl
+julia> q = short_text_question("q1", "my question")
+```
+
+To construct a multi-language short text question, use [`language_settings`](@ref).
+```julia-repl
+julia> q = short_text_question("q2", language_settings([
+    language_setting("en", "question title"),
+    language_setting("de", "Fragetitel")
+]))
+```
+"""
 function short_text_question(id, language_settings::LanguageSettings; kwargs...)
     return Question(;
         id,
@@ -62,6 +189,13 @@ function short_text_question(id, title::String; help=nothing, default=nothing, k
     return short_text_question(id, settings; kwargs...)
 end
 
+"""
+    long_text_question(id, language_settings::LanguageSettings; kwargs...)
+
+Construct a multi-language long text question.
+
+For a list of available keyword arguments see [`Question`](@ref).
+"""
 function long_text_question(id, language_settings::LanguageSettings; kwargs...)
     return Question(;
         id,
@@ -71,11 +205,25 @@ function long_text_question(id, language_settings::LanguageSettings; kwargs...)
     )
 end
 
+"""
+    long_text_question(id, title::String; help, default, kwargs...)
+
+Construct a single-language long text question.
+
+For a list of available keyword arguments see [`Question`](@ref).
+"""
 function long_text_question(id, title::String; help=nothing, default=nothing, kwargs...)
     settings = language_settings(default_language(), title; help, default)
     return long_text_question(id, settings; kwargs...)
 end
 
+"""
+    huge_text_question(id, language_settings::LanguageSettings; kwargs...)
+
+Construct a multi-language long text question.
+
+For a list of available keyword arguments see [`Question`](@ref).
+"""
 function huge_text_question(id, language_settings::LanguageSettings; kwargs...)
     return Question(;
         id,
@@ -85,11 +233,25 @@ function huge_text_question(id, language_settings::LanguageSettings; kwargs...)
     )
 end
 
+"""
+    huge_text_question(id, title::String; help, default, kwargs...)
+
+Construct a single-language long text question.
+
+For a list of available keyword arguments see [`Question`](@ref).
+"""
 function huge_text_question(id, title::String; help=nothing, default=nothing, kwargs...)
     settings = language_settings(default_language(), title; help, default)
     return huge_text_question(id, settings; kwargs...)
 end
 
+"""
+    multiple_short_text_question(id, language_settings::LanguageSettings; subquestions, kwargs...)
+
+Construct a multi-language multiple short text question.
+
+For a list of available keyword arguments see [`Question`](@ref).
+"""
 function multiple_short_text_question(id, language_settings::LanguageSettings; subquestions, kwargs...)
     return Question(;
         id,
@@ -100,15 +262,36 @@ function multiple_short_text_question(id, language_settings::LanguageSettings; s
     )
 end
 
+"""
+    multiple_short_text_question(id, title::String; subquestions, help, kwargs...)
+
+Construct a single-language multiple short text question.
+
+For a list of available keyword arguments see [`Question`](@ref).
+"""
 function multiple_short_text_question(id, title::String; subquestions, help=nothing, kwargs...)
     settings = language_settings(default_language(), title; help)
     return multiple_short_text_question(id, settings; subquestions, kwargs...)
 end
 
+"""
+    multiple_short_text_question(children::Function, id, language_settings::LanguageSettings; kwargs...)
+
+Construct a multi-language multiple short text question using `do...end` syntax.
+
+For a list of available keyword arguments see [`Question`](@ref).
+"""
 function multiple_short_text_question(children::Function, id, language_settings::LanguageSettings; kwargs...)
     return multiple_short_text_question(id, language_settings; subquestions=tovector(children()), kwargs...)
 end
 
+"""
+    multiple_short_text_question(children::Function, id, title::String; help, kwargs...)
+
+Construct a single-language multiple short text question using `do...end` syntax.
+
+For a list of available keyword arguments see [`Question`](@ref).
+"""
 function multiple_short_text_question(children::Function, id, title::String; help=nothing, kwargs...)
     settings = language_settings(default_language(), title; help)
     return multiple_short_text_question(id, settings; subquestions=tovector(children()), kwargs...)
